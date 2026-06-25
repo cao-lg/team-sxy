@@ -208,8 +208,14 @@ const teacherRadarData = computed(() => {
   )
   return DIMENSIONS.map(dim => {
     const dimData = yearAssessments.find(a => a.dimension === dim)
-    if (!dimData || !dimData.expectedTarget) return 0
-    return Math.round((dimData.actualAchievement / dimData.expectedTarget) * 100)
+    if (!dimData) return 0
+    if (dimData.completionRate != null && dimData.completionRate > 0) {
+      return Math.round(dimData.completionRate)
+    }
+    if (dimData.expectedTarget && dimData.expectedTarget > 0) {
+      return Math.round((dimData.actualAchievement / dimData.expectedTarget) * 100)
+    }
+    return 0
   })
 })
 
@@ -219,13 +225,21 @@ const teacherDimBarData = computed(() => {
   )
   return DIMENSIONS.map(dim => {
     const dimData = yearAssessments.find(a => a.dimension === dim)
+    let rate = 0
+    let expected = 20
+    if (dimData) {
+      if (dimData.completionRate != null && dimData.completionRate > 0) {
+        rate = Math.round(dimData.completionRate)
+      } else if (dimData.expectedTarget && dimData.expectedTarget > 0) {
+        rate = Math.round((dimData.actualAchievement / dimData.expectedTarget) * 100)
+      }
+      expected = dimData.expectedTarget || 20
+    }
     return {
       name: dim,
       actual: dimData ? Math.round(dimData.actualAchievement * 10) / 10 : 0,
-      expected: dimData ? dimData.expectedTarget : 20,
-      rate: dimData && dimData.expectedTarget
-        ? Math.round((dimData.actualAchievement / dimData.expectedTarget) * 100)
-        : 0
+      expected,
+      rate
     }
   })
 })
