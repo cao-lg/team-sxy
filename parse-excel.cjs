@@ -114,19 +114,18 @@ for (let i = 3; i < planRows.length; i++) {
         teacherName: name,
         year,
         dimension: dim,
-        expectedTarget: 80 + (year - 2024) * 5,
+        expectedTarget: 15,
         targetText: yearText
       });
     }
   }
-  // 第7个维度：其他规划
   for (const year of [2024, 2025, 2026]) {
     plans.push({
       teacherId,
       teacherName: name,
       year,
       dimension: '其他规划',
-      expectedTarget: 70 + (year - 2024) * 5,
+      expectedTarget: 5,
       targetText: ''
     });
   }
@@ -262,6 +261,31 @@ for (const yearStr of ['2024', '2025']) {
   console.log('✅ ' + yearStr + ' 考核记录:', count, '条');
 }
 console.log('✅ 总考核记录:', assessments.length, '条');
+
+// 用考核数据回填个人规划的预期目标分
+for (const plan of plans) {
+  const assess = assessments.find(
+    a => a.teacherName === plan.teacherName && a.year === plan.year && a.dimension === plan.dimension
+  );
+  if (assess && assess.expectedTarget) {
+    plan.expectedTarget = assess.expectedTarget;
+  }
+}
+// 2026年没有考核数据，用2025年的
+for (const plan of plans) {
+  if (plan.year === 2026) {
+    const assess2025 = plans.find(
+      p => p.teacherName === plan.teacherName && p.year === 2025 && p.dimension === plan.dimension && p.expectedTarget > 5
+    );
+    if (!assess2025) continue;
+    const assess = assessments.find(
+      a => a.teacherName === plan.teacherName && a.year === 2025 && a.dimension === plan.dimension
+    );
+    if (assess && assess.expectedTarget) {
+      plan.expectedTarget = assess.expectedTarget;
+    }
+  }
+}
 
 // 输出 JSON
 const result = { teachers, taskBooks, plans, assessments };
