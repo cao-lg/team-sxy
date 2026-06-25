@@ -158,7 +158,7 @@ const radarData = computed(() => {
   return DIMENSIONS.map(dim => {
     const dimData = yearAssessments.filter(a => a.dimension === dim)
     if (dimData.length === 0) return 0
-    const avg = dimData.reduce((sum, a) => sum + a.totalScore, 0) / dimData.length
+    const avg = dimData.reduce((sum, a) => sum + a.completionRate, 0) / dimData.length
     return Math.round(avg)
   })
 })
@@ -208,18 +208,8 @@ const teacherRadarData = computed(() => {
   )
   return DIMENSIONS.map(dim => {
     const dimData = yearAssessments.find(a => a.dimension === dim)
-    return dimData ? Math.round(dimData.actualAchievement * 10) / 10 : 0
-  })
-})
-
-// 获取选中教师的各维度预期目标分（用于雷达图最大值）
-const teacherExpectedTargets = computed(() => {
-  const yearAssessments = assessments.value.filter(
-    a => a.year === currentYear.value && a.teacherName === selectedTeacher.value
-  )
-  return DIMENSIONS.map(dim => {
-    const dimData = yearAssessments.find(a => a.dimension === dim)
-    return dimData ? dimData.expectedTarget : 20
+    if (!dimData || !dimData.expectedTarget) return 0
+    return Math.round((dimData.actualAchievement / dimData.expectedTarget) * 100)
   })
 })
 
@@ -232,7 +222,10 @@ const teacherDimBarData = computed(() => {
     return {
       name: dim,
       actual: dimData ? Math.round(dimData.actualAchievement * 10) / 10 : 0,
-      expected: dimData ? dimData.expectedTarget : 20
+      expected: dimData ? dimData.expectedTarget : 20,
+      rate: dimData && dimData.expectedTarget
+        ? Math.round((dimData.actualAchievement / dimData.expectedTarget) * 100)
+        : 0
     }
   })
 })
@@ -247,10 +240,18 @@ function updateRadarChart() {
   if (!radarChart) return
   const option = {
     tooltip: {
-      trigger: 'item'
+      trigger: 'item',
+      formatter: (params) => {
+        const values = params.value
+        let result = params.name + '<br/>'
+        DIMENSIONS.forEach((dim, i) => {
+          result += `${dim}：${values[i]}%<br/>`
+        })
+        return result
+      }
     },
     radar: {
-      indicator: DIMENSIONS.map(d => ({ name: d, max: 25 })),
+      indicator: DIMENSIONS.map(d => ({ name: d, max: 100 })),
       shape: 'polygon',
       splitNumber: 5,
       axisName: {
@@ -271,7 +272,7 @@ function updateRadarChart() {
       type: 'radar',
       data: [{
         value: radarData.value,
-        name: '团队均分',
+        name: '团队平均',
         areaStyle: {
           color: 'rgba(64, 158, 255, 0.25)'
         },
@@ -280,6 +281,12 @@ function updateRadarChart() {
           width: 2
         },
         itemStyle: {
+          color: '#409eff'
+        },
+        label: {
+          show: true,
+          formatter: (params) => params.value + '%',
+          fontSize: 10,
           color: '#409eff'
         }
       }]
@@ -296,16 +303,17 @@ function initTeacherRadarChart() {
 
 function updateTeacherRadarChart() {
   if (!teacherRadarChart) return
-  const maxValues = teacherExpectedTargets.value
+  const data = teacherRadarData.value
   const option = {
     tooltip: {
       trigger: 'item',
       formatter: (params) => {
-        const dim = DIMENSIONS[params.seriesIndex]
-        const actual = params.value[params.seriesIndex]
-        const expected = maxValues[params.seriesIndex]
-        const rate = expected > 0 ? ((actual / expected) * 100).toFixed(1) : 0
-        return `${dim}<br/>实际：${actual}分<br/>目标：${expected}分<br/>完成率：${rate}%`
+        const values = params.value
+        let result = params.name + '<br/>'
+        DIMENSIONS.forEach((dim, i) => {
+          result += `${dim}：${values[i]}%<br/>`
+        })
+        return result
       }
     },
     legend: {
@@ -313,7 +321,7 @@ function updateTeacherRadarChart() {
       data: [selectedTeacher.value]
     },
     radar: {
-      indicator: DIMENSIONS.map((d, i) => ({ name: d, max: maxValues[i] || 20 })),
+      indicator: DIMENSIONS.map(d => ({ name: d, max: 100 })),
       shape: 'polygon',
       splitNumber: 5,
       axisName: {
@@ -333,7 +341,7 @@ function updateTeacherRadarChart() {
     series: [{
       type: 'radar',
       data: [{
-        value: teacherRadarData.value,
+        value: data,
         name: selectedTeacher.value,
         areaStyle: {
           color: 'rgba(103, 194, 58, 0.25)'
@@ -343,6 +351,12 @@ function updateTeacherRadarChart() {
           width: 2
         },
         itemStyle: {
+          color: '#67c23a'
+        },
+        label: {
+          show: true,
+          formatter: (params) => params.value + '%',
+          fontSize: 10,
           color: '#67c23a'
         }
       }]
@@ -489,8 +503,7 @@ function updateTeacherBarChart() {
   if (!teacherBarChart) return
   const data = teacherDimBarData.value
   const names = data.map(d => d.name)
-  const actuals = data.map(d => d.actual)
-  const expecteds = data.map(d => d.expected)
+  const rates = data.map(d => d.rate)
 
   const option = {
     tooltip: {
@@ -498,73 +511,69 @@ function updateTeacherBarChart() {
       axisPointer: { type: 'shadow' },
       formatter: function(params) {
         const dim = params[0].name
-        const actual = params[0].value
-        const expected = params[1].value
-        const rate = expected > 0 ? ((actual / expected) * 100).toFixed(1) : 0
-        return `${dim}<br/><span style="color:#e6a23c">●</span> 实际：${actual}分<br/><span style="color:#909399">●</span> 目标：${expected}分<br/>完成率：${rate}%`
+        const item = data.find(d => d.name === dim)
+        return `${dim}<br/>完成率：${item.rate}%<br/>实际：${item.actual}分<br/>目标：${item.expected}分`
       }
-    },
-    legend: {
-      bottom: 5,
-      data: ['实际得分', '预期目标'],
-      textStyle: { fontSize: 11 }
     },
     grid: {
       left: '3%',
-      right: '12%',
-      bottom: '15%',
+      right: '8%',
+      bottom: '3%',
       top: '5%',
       containLabel: true
     },
     xAxis: {
-      type: 'category',
-      data: names,
-      axisLine: { lineStyle: { color: '#dcdfe6' } },
-      axisLabel: { color: '#606266', fontSize: 10, rotate: 30 }
-    },
-    yAxis: {
       type: 'value',
+      min: 0,
+      max: 100,
       axisLine: { show: false },
       axisTick: { show: false },
       splitLine: { lineStyle: { color: '#f0f2f5' } },
-      axisLabel: { color: '#909399' }
+      axisLabel: { color: '#909399', formatter: '{value}%' }
     },
-    series: [
-      {
-        name: '实际得分',
-        type: 'bar',
-        data: actuals,
-        barWidth: 12,
-        itemStyle: {
-          borderRadius: [4, 4, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#e6a23c' },
-            { offset: 1, color: '#f0c78a' }
-          ])
-        },
-        label: {
-          show: true,
-          position: 'top',
-          color: '#606266',
-          fontSize: 10,
-          formatter: '{c}'
-        }
+    yAxis: {
+      type: 'category',
+      data: names,
+      axisLine: { lineStyle: { color: '#dcdfe6' } },
+      axisLabel: { color: '#606266', fontSize: 11 }
+    },
+    series: [{
+      type: 'bar',
+      data: rates,
+      barWidth: 14,
+      itemStyle: {
+        borderRadius: [0, 4, 4, 0],
+        color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+          { offset: 0, color: '#e6a23c' },
+          { offset: 1, color: '#f0c78a' }
+        ])
       },
-      {
-        name: '预期目标',
-        type: 'bar',
-        data: expecteds,
-        barWidth: 12,
-        barGap: '-100%',
-        itemStyle: {
-          borderRadius: [4, 4, 0, 0],
-          color: 'rgba(144, 147, 153, 0.3)',
-          borderColor: '#909399',
-          borderWidth: 1
+      label: {
+        show: true,
+        position: 'right',
+        color: '#606266',
+        fontSize: 11,
+        formatter: '{c}%'
+      },
+      markLine: {
+        silent: true,
+        symbol: 'none',
+        lineStyle: {
+          color: '#67c23a',
+          type: 'dashed',
+          width: 2
         },
-        label: { show: false }
+        data: [{
+          xAxis: 80,
+          label: {
+            formatter: '80%基准线',
+            position: 'end',
+            color: '#67c23a',
+            fontSize: 10
+          }
+        }]
       }
-    ]
+    }]
   }
   teacherBarChart.setOption(option)
 }
