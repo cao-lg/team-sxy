@@ -227,7 +227,9 @@ const teacherDimBarData = computed(() => {
     const dimData = yearAssessments.find(a => a.dimension === dim)
     let rate = 0
     let expected = 20
+    let actual = 0
     if (dimData) {
+      actual = Math.round(dimData.actualAchievement * 10) / 10
       if (dimData.completionRate != null && dimData.completionRate > 0) {
         rate = Math.round(dimData.completionRate)
       } else if (dimData.expectedTarget && dimData.expectedTarget > 0) {
@@ -237,7 +239,7 @@ const teacherDimBarData = computed(() => {
     }
     return {
       name: dim,
-      actual: dimData ? Math.round(dimData.actualAchievement * 10) / 10 : 0,
+      actual,
       expected,
       rate
     }
@@ -517,7 +519,9 @@ function updateTeacherBarChart() {
   if (!teacherBarChart) return
   const data = teacherDimBarData.value
   const names = data.map(d => d.name)
-  const rates = data.map(d => d.rate)
+  const actuals = data.map(d => d.actual)
+  const expecteds = data.map(d => d.expected)
+  const maxValue = Math.max(...expecteds, 20)
 
   const option = {
     tooltip: {
@@ -526,24 +530,29 @@ function updateTeacherBarChart() {
       formatter: function(params) {
         const dim = params[0].name
         const item = data.find(d => d.name === dim)
-        return `${dim}<br/>完成率：${item.rate}%<br/>实际：${item.actual}分<br/>目标：${item.expected}分`
+        return `${dim}<br/>实际得分：${item.actual}分<br/>预期目标：${item.expected}分<br/>完成率：${item.rate}%`
       }
+    },
+    legend: {
+      bottom: 5,
+      data: ['实际得分', '预期目标'],
+      textStyle: { fontSize: 11 }
     },
     grid: {
       left: '3%',
       right: '8%',
-      bottom: '3%',
+      bottom: '12%',
       top: '5%',
       containLabel: true
     },
     xAxis: {
       type: 'value',
       min: 0,
-      max: 100,
+      max: maxValue,
       axisLine: { show: false },
       axisTick: { show: false },
       splitLine: { lineStyle: { color: '#f0f2f5' } },
-      axisLabel: { color: '#909399', formatter: '{value}%' }
+      axisLabel: { color: '#909399' }
     },
     yAxis: {
       type: 'category',
@@ -551,43 +560,49 @@ function updateTeacherBarChart() {
       axisLine: { lineStyle: { color: '#dcdfe6' } },
       axisLabel: { color: '#606266', fontSize: 11 }
     },
-    series: [{
-      type: 'bar',
-      data: rates,
-      barWidth: 14,
-      itemStyle: {
-        borderRadius: [0, 4, 4, 0],
-        color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          { offset: 0, color: '#e6a23c' },
-          { offset: 1, color: '#f0c78a' }
-        ])
-      },
-      label: {
-        show: true,
-        position: 'right',
-        color: '#606266',
-        fontSize: 11,
-        formatter: '{c}%'
-      },
-      markLine: {
-        silent: true,
-        symbol: 'none',
-        lineStyle: {
-          color: '#67c23a',
-          type: 'dashed',
-          width: 2
+    series: [
+      {
+        name: '预期目标',
+        type: 'bar',
+        data: expecteds,
+        barWidth: 14,
+        barGap: '-100%',
+        itemStyle: {
+          borderRadius: [0, 4, 4, 0],
+          color: 'rgba(144, 147, 153, 0.25)',
+          borderColor: '#909399',
+          borderWidth: 1
         },
-        data: [{
-          xAxis: 80,
-          label: {
-            formatter: '80%基准线',
-            position: 'end',
-            color: '#67c23a',
-            fontSize: 10
-          }
-        }]
+        label: {
+          show: true,
+          position: 'right',
+          color: '#909399',
+          fontSize: 10,
+          formatter: '{c}分'
+        }
+      },
+      {
+        name: '实际得分',
+        type: 'bar',
+        data: actuals,
+        barWidth: 14,
+        itemStyle: {
+          borderRadius: [0, 4, 4, 0],
+          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            { offset: 0, color: '#e6a23c' },
+            { offset: 1, color: '#f0c78a' }
+          ])
+        },
+        label: {
+          show: true,
+          position: 'insideRight',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 'bold',
+          formatter: '{c}'
+        }
       }
-    }]
+    ]
   }
   teacherBarChart.setOption(option)
 }
